@@ -26,7 +26,7 @@ namespace Archiver
             Log.Logger = new LoggerConfiguration()
                 .MinimumLevel.Information()
                 .WriteTo.Console()
-                .WriteTo.File("Archiver.log", rollingInterval: RollingInterval.Day)
+                .WriteTo.File("Logs/Archiver.log", rollingInterval: RollingInterval.Day)
                 .CreateLogger();
             Log.Information($"Starting {Environment.CommandLine} from {Environment.CurrentDirectory}");
             Arguments.Populate();
