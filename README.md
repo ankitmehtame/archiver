@@ -18,3 +18,5 @@ _--retention_ | _-r_: Number of days to retain locally, after which files will b
 _--format_ | _-f_: File name date format. Date can only be at the front or the end. Example: "*yyyy-MM-dd_HH-mm-ss"
 
 _--debug_: Enables debug logging (information by default)
+
+_--demo_: Enables demo mode where no changes are made

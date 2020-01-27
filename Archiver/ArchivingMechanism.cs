@@ -21,8 +21,9 @@ namespace Archiver
         /// <param name="extensions">File extensions that should be archived e.g. ".mp4|.mpeg|.avi"</param>
         /// <param name="retentionDays">Number of days to retain files locally</param>
         /// <param name="fileNameDateFormat">Format of the file name to extract date from</param>
+        /// <param name="isDemo">If in demo mode, it will not create folders or move files, but will log everything as if it is performing real actions</param>
         /// <returns>0 on success, 1 on directory not found, 2 on date format not specified or not valid</returns>
-        public int Archive(string sourceRoot, string destRoot, string extensions = DefaultExtensions, int retentionDays = DefaultRetentionDays, string fileNameDateFormat = DefaultFileNameDateFormat)
+        public int Archive(string sourceRoot, string destRoot, string extensions = DefaultExtensions, int retentionDays = DefaultRetentionDays, string fileNameDateFormat = DefaultFileNameDateFormat, bool isDemo = false)
         {
             Log.Information($"Archiving started from source {sourceRoot} to destination {destRoot}");
             var today = DateTimeOffset.Now.Date;
@@ -46,7 +47,7 @@ namespace Archiver
             var totalItemsToArchive = 0;
             try
             {
-                var topLevelDirs = Directory.GetDirectories(destRoot);
+                var topLevelDirs = Directory.GetDirectories(sourceRoot);
                 foreach (var topLevelDir in topLevelDirs)
                 {
                     var allFiles = Directory.GetFiles(topLevelDir, "*.*", new EnumerationOptions { RecurseSubdirectories = false });
@@ -56,14 +57,16 @@ namespace Archiver
                     .Where(x => x.Date != null && x.Date < today.Subtract(TimeSpan.FromDays(retentionDays)))
                     .GroupBy(x => x.Date.Value);
 
-                    var minMaxDates = groups.Any() ? new { MinDate = groups.Min(g => g), MaxDate = groups.Max(g => g) } : null;
+                    var minMaxDates = groups.Any() ? new { MinDate = groups.Min(g => g.Key), MaxDate = groups.Max(g => g.Key) } : null;
                     if (minMaxDates != null)
                     {
-                        Log.Debug($"Found oldest folder to archive for date {minMaxDates.MinDate} and latest folder for date {minMaxDates.MaxDate}");
+                        var minDateText = minMaxDates.MinDate.ToString("yyyy-MM-dd");
+                        var maxDateText = minMaxDates.MaxDate.ToString("yyyy-MM-dd");
+                        Log.Information($"Found oldest file to archive for date {minDateText} and latest for date {maxDateText} in {topLevelDir}");
                     }
                     else
                     {
-                        Log.Debug($"No folder found to archive");
+                        Log.Information($"No file found to archive in {topLevelDir}");
                     }
 
                     var totalItemsAtThisLevel = allFiles.Length;
@@ -71,13 +74,16 @@ namespace Archiver
                     foreach (var group in groups.OrderBy(g => g.Key))
                     {
                         var dateText = group.Key.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-                        var groupDirFullName = Path.Combine(destRoot, Path.GetDirectoryName(topLevelDir), dateText);
+                        var groupDirFullName = Path.Combine(destRoot, Path.GetFileName(topLevelDir), dateText);
                         if (!Directory.Exists(groupDirFullName))
                         {
-                            Log.Debug($"Creating folder {groupDirFullName} with path {groupDirFullName}");
-                            var groupDir = Directory.CreateDirectory(groupDirFullName);
+                            Log.Information($"Creating folder {groupDirFullName}");
+                            if (!isDemo)
+                            {
+                                Directory.CreateDirectory(groupDirFullName);
+                            }
                         }
-                        foreach (var item in group.OrderBy(f => f))
+                        foreach (var item in group.OrderBy(f => f.FilePath))
                         {
                             currentNum++;
                             totalItemsToArchive++;
@@ -86,7 +92,10 @@ namespace Archiver
                             var newFileName = GetProperFileNameWithoutExt(file) + Path.GetExtension(file);
                             var newFilePath = Path.Combine(groupDirFullName, newFileName);
                             Log.Debug($"Moving file {Path.GetFileName(file)} to {groupDirFullName}  -  {currentNum}/{totalItemsAtThisLevel} ({perc}%)");
-                            File.Move(file, newFilePath);
+                            if (!isDemo)
+                            {
+                                File.Move(file, newFilePath, true);
+                            }
                             totalItemsSuccessfullyArchived++;
                         }
                     }

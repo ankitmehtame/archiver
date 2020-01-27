@@ -26,6 +26,7 @@ namespace Archiver
         static int Main(string[] args)
         {
             var enableDebug = args.Any(a => a == "--debug");
+            var isDemo = args.Any(a => a == "--demo");
             Log.Logger = new LoggerConfiguration()
                 .MinimumLevel.Is(enableDebug ? LogEventLevel.Debug : LogEventLevel.Information)
                 .WriteTo.Console()
@@ -33,7 +34,10 @@ namespace Archiver
                 .CreateLogger();
             Log.Information($"Starting {Environment.CommandLine} from {Environment.CurrentDirectory}");
             Log.Debug("Debug logging enabled");
-            
+            if (isDemo)
+            {
+                Log.Information("Demo mode enabled");
+            }
             Arguments.Populate();
             if (Source == null || Destination == null)
             {
@@ -44,7 +48,7 @@ namespace Archiver
             int retCode = 0;
             try
             {
-                retCode = archivingMechanism.Archive(Source, Destination, Extensions, Retention, FileNameDateFormat);
+                retCode = archivingMechanism.Archive(Source, Destination, Extensions, Retention, FileNameDateFormat, isDemo);
             }
             catch(Exception ex)
             {
