@@ -12,7 +12,7 @@ namespace Archiver
         [Argument('d', "destination", "Destination directory")]
         private static string Destination { get; set; }
 
-        [Argument('e', "extensions", "Extensions to archive, example: \".mp4|.avi|.mpeg\", default is \".*\"")]
+        [Argument('e', "extensions", "File extensions to archive, example: \".mp4|.avi|.mpeg\", default is \".*\"")]
         private static string Extensions { get; set; } = ArchivingMechanism.DefaultExtensions;
 
         [Argument('r', "retention", "Number of days to retain locally, after which files will be archived")]
