@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Linq;
 using Serilog;
+using Serilog.Events;
 using Utility.CommandLine;
 
 namespace Archiver
@@ -23,8 +25,9 @@ namespace Archiver
 
         static int Main(string[] args)
         {
+            var enableDebug = args.Any(a => a == "--debug");
             Log.Logger = new LoggerConfiguration()
-                .MinimumLevel.Information()
+                .MinimumLevel.Is(enableDebug ? LogEventLevel.Debug : LogEventLevel.Information)
                 .WriteTo.Console()
                 .WriteTo.File("Logs/Archiver.log", rollingInterval: RollingInterval.Day)
                 .CreateLogger();

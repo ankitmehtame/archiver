@@ -56,6 +56,12 @@ namespace Archiver
                     .Where(x => x.Date != null && x.Date < today.Subtract(TimeSpan.FromDays(retentionDays)))
                     .GroupBy(x => x.Date.Value);
 
+                    var minMaxDates = groups.Any() ? new { MinDate = groups.Min(g => g), MaxDate = groups.Max(g => g) } : null;
+                    if (minMaxDates != null)
+                    {
+                        Log.Debug($"Found oldest folder for date {minMaxDates.MinDate} and latest folder for date {minMaxDates.MaxDate}");
+                    }
+
                     var totalItemsAtThisLevel = allFiles.Length;
                     int currentNum = 0;
                     foreach (var group in groups.OrderBy(g => g.Key))
