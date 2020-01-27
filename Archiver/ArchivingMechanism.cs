@@ -25,6 +25,8 @@ namespace Archiver
         public int Archive(string sourceRoot, string destRoot, string extensions = DefaultExtensions, int retentionDays = DefaultRetentionDays, string fileNameDateFormat = DefaultFileNameDateFormat)
         {
             Log.Information($"Archiving started from source {sourceRoot} to destination {destRoot}");
+            var today = DateTimeOffset.Now.Date;
+            
             if (!Directory.Exists(sourceRoot))
             {
                 Log.Warning($"Source dir {sourceRoot} does not exist");
@@ -40,46 +42,62 @@ namespace Archiver
                 Log.Warning($"File name date format is not valid");
                 return 2;
             }
-            var topLevelDirs = Directory.GetDirectories(destRoot);
-            foreach (var topLevelDir in topLevelDirs)
+            var totalItemsSuccessfullyArchived = 0;
+            var totalItemsToArchive = 0;
+            try
             {
-                var allFiles = Directory.GetFiles(topLevelDir, "*.*", new EnumerationOptions { RecurseSubdirectories = false });
-                var groups = allFiles
-                .Where(f => Regex.IsMatch(Path.GetExtension(f), extensions))
-                .GroupBy(f =>
+                var topLevelDirs = Directory.GetDirectories(destRoot);
+                foreach (var topLevelDir in topLevelDirs)
                 {
-                    var fileName = Path.GetFileNameWithoutExtension(f);
-                    if (fileName.EndsWith("."))
-                    {
-                        fileName = fileName.TrimEnd('.');
-                    }
-                    return GetDate(fileName, fileNameDateFormat);
-                });
+                    var allFiles = Directory.GetFiles(topLevelDir, "*.*", new EnumerationOptions { RecurseSubdirectories = false });
+                    var groups = allFiles
+                    .Where(f => Regex.IsMatch(Path.GetExtension(f), extensions))
+                    .Select(f => new { FilePath = f, Date = GetDate(GetProperFileNameWithoutExt(f), fileNameDateFormat) })
+                    .Where(x => x.Date != null && x.Date < today.Subtract(TimeSpan.FromDays(retentionDays)))
+                    .GroupBy(x => x.Date.Value);
 
-                var totalItems = allFiles.Length;
-                int currentNum = 0;
-                foreach (var group in groups.Where(g => g.Key != null).OrderBy(g => g.Key))
-                {
-                    var dateText = group.Key.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-                    var groupDirFullName = Path.Combine(destRoot, Path.GetDirectoryName(topLevelDir), dateText);
-                    if (!Directory.Exists(groupDirFullName))
+                    var totalItemsAtThisLevel = allFiles.Length;
+                    int currentNum = 0;
+                    foreach (var group in groups.OrderBy(g => g.Key))
                     {
-                        Log.Debug($"Creating folder {groupDirFullName} with path {groupDirFullName}");
-                        var groupDir = Directory.CreateDirectory(groupDirFullName);
-                    }
-                    foreach (var file in group.OrderBy(f => f))
-                    {
-                        currentNum++;
-                        var perc = Math.Round(currentNum * 100m / totalItems, 2);
-                        var newFileName = Path.GetFileNameWithoutExtension(file).TrimEnd('.') + Path.GetExtension(file);
-                        var newFilePath = Path.Combine(groupDirFullName, newFileName);
-                        Log.Debug($"Moving file {Path.GetFileName(file)} to {groupDirFullName}  -  {currentNum}/{totalItems} ({perc}%)");
-                        File.Move(file, newFilePath);
+                        var dateText = group.Key.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+                        var groupDirFullName = Path.Combine(destRoot, Path.GetDirectoryName(topLevelDir), dateText);
+                        if (!Directory.Exists(groupDirFullName))
+                        {
+                            Log.Debug($"Creating folder {groupDirFullName} with path {groupDirFullName}");
+                            var groupDir = Directory.CreateDirectory(groupDirFullName);
+                        }
+                        foreach (var item in group.OrderBy(f => f))
+                        {
+                            currentNum++;
+                            totalItemsToArchive++;
+                            var perc = Math.Round(currentNum * 100m / totalItemsAtThisLevel, 2);
+                            var file = item.FilePath;
+                            var newFileName = GetProperFileNameWithoutExt(file) + Path.GetExtension(file);
+                            var newFilePath = Path.Combine(groupDirFullName, newFileName);
+                            Log.Debug($"Moving file {Path.GetFileName(file)} to {groupDirFullName}  -  {currentNum}/{totalItemsAtThisLevel} ({perc}%)");
+                            File.Move(file, newFilePath);
+                            totalItemsSuccessfullyArchived++;
+                        }
                     }
                 }
+                return 0;
             }
-            Log.Information($"Archiving completed");
-            return 0;
+            catch
+            {
+                Log.Warning("There has been an error during archival process");
+                throw;
+            }
+            finally
+            {
+                Log.Information($"Archiving completed - archived {totalItemsSuccessfullyArchived} out of {totalItemsToArchive}");
+            }
+        }
+
+        private static string GetProperFileNameWithoutExt(string filePath)
+        {
+            var fileName = Path.GetFileNameWithoutExtension(filePath);
+            return fileName.TrimEnd('.');
         }
 
         private DateTime? GetDate(string fileNameWithoutExt, string fileNameDateFormat)
