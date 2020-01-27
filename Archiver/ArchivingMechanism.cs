@@ -59,7 +59,11 @@ namespace Archiver
                     var minMaxDates = groups.Any() ? new { MinDate = groups.Min(g => g), MaxDate = groups.Max(g => g) } : null;
                     if (minMaxDates != null)
                     {
-                        Log.Debug($"Found oldest folder for date {minMaxDates.MinDate} and latest folder for date {minMaxDates.MaxDate}");
+                        Log.Debug($"Found oldest folder to archive for date {minMaxDates.MinDate} and latest folder for date {minMaxDates.MaxDate}");
+                    }
+                    else
+                    {
+                        Log.Debug($"No folder found to archive");
                     }
 
                     var totalItemsAtThisLevel = allFiles.Length;

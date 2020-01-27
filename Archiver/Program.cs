@@ -32,6 +32,8 @@ namespace Archiver
                 .WriteTo.File("Logs/Archiver.log", rollingInterval: RollingInterval.Day)
                 .CreateLogger();
             Log.Information($"Starting {Environment.CommandLine} from {Environment.CurrentDirectory}");
+            Log.Debug("Debug logging enabled");
+            
             Arguments.Populate();
             if (Source == null || Destination == null)
             {
