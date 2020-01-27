@@ -13,7 +13,13 @@ namespace Archiver
         private static string Destination { get; set; }
 
         [Argument('e', "extensions", "Extensions to archive, example: \".mp4|.avi|.mpeg\", default is \".*\"")]
-        private static string Extensions { get; set; }
+        private static string Extensions { get; set; } = ArchivingMechanism.DefaultExtensions;
+
+        [Argument('r', "retention", "Number of days to retain locally, after which files will be archived")]
+        private static int Retention { get; set; } = ArchivingMechanism.DefaultRetentionDays;
+
+        [Argument('f', "format", "File name date format. Date can only be at the front or the end.")]
+        private static string FileNameDateFormat { get; set; } = ArchivingMechanism.DefaultFileNameDateFormat;
 
         static int Main(string[] args)
         {
@@ -33,7 +39,7 @@ namespace Archiver
             int retCode = 0;
             try
             {
-                retCode = archivingMechanism.Archive(Source, Destination);
+                retCode = archivingMechanism.Archive(Source, Destination, Extensions, Retention, FileNameDateFormat);
             }
             catch(Exception ex)
             {
