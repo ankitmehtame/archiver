@@ -20,13 +20,18 @@ namespace Archiver
         /// <param name="destRoot">Destination directory (should exist)</param>
         /// <param name="extensions">File extensions that should be archived e.g. ".mp4|.mpeg|.avi"</param>
         /// <param name="retentionDays">Number of days to retain files locally</param>
-        /// <param name="fileNameDateFormat">Format of the file name to extract date from</param>
+        /// <param name="fileNameDateFormats">Formats of the file name to extract date from</param>
+        /// <param name="recurseSubDirs">Recurse sub directories in source path</param>
         /// <param name="isDemo">If in demo mode, it will not create folders or move files, but will log everything as if it is performing real actions</param>
         /// <returns>0 on success, 1 on directory not found, 2 on date format not specified or not valid</returns>
-        public int Archive(string sourceRoot, string destRoot, string extensions = DefaultExtensions, int retentionDays = DefaultRetentionDays, string fileNameDateFormat = DefaultFileNameDateFormat, bool isDemo = false)
+        public int Archive(string sourceRoot, string destRoot, string[] fileNameDateFormats, string extensions = DefaultExtensions, int retentionDays = DefaultRetentionDays, bool recurseSubDirs = false, bool isDemo = false)
         {
+            var fileNameDateFormatsAsText = fileNameDateFormats == null ? string.Empty : string.Join(", ", fileNameDateFormats);
+            Log.Debug($"Archive called with {nameof(sourceRoot)}={sourceRoot} {nameof(destRoot)}={destRoot} {nameof(fileNameDateFormats)}=[{fileNameDateFormatsAsText}] {nameof(extensions)}={extensions} {nameof(retentionDays)}={retentionDays} {nameof(recurseSubDirs)}={recurseSubDirs} {nameof(isDemo)}={isDemo}");
             Log.Information($"Archiving started from source {sourceRoot} to destination {destRoot}");
             var today = DateTimeOffset.Now.Date;
+
+            fileNameDateFormats = fileNameDateFormats?.Length > 0 ? fileNameDateFormats : new [] { DefaultFileNameDateFormat };
             
             if (!Directory.Exists(sourceRoot))
             {
@@ -38,10 +43,13 @@ namespace Archiver
                 Log.Warning($"Destination dir {destRoot} does not exist");
                 return 1;
             }
-            if (fileNameDateFormat == null || !((fileNameDateFormat.StartsWith("*") && !fileNameDateFormat.EndsWith("*")) || (!fileNameDateFormat.StartsWith("*") && fileNameDateFormat.EndsWith("*"))))
+            foreach(var fileNameDateFormat in fileNameDateFormats)
             {
-                Log.Warning($"File name date format is not valid");
-                return 2;
+                if (fileNameDateFormat == null || !((fileNameDateFormat.StartsWith("*") && !fileNameDateFormat.EndsWith("*")) || (!fileNameDateFormat.StartsWith("*") && fileNameDateFormat.EndsWith("*"))))
+                {
+                    Log.Warning($"File name date format is not valid");
+                    return 2;
+                }
             }
             var totalItemsSuccessfullyArchived = 0;
             var totalItemsToArchive = 0;
@@ -50,10 +58,10 @@ namespace Archiver
                 var topLevelDirs = Directory.GetDirectories(sourceRoot);
                 foreach (var topLevelDir in topLevelDirs)
                 {
-                    var allFiles = Directory.GetFiles(topLevelDir, "*.*", new EnumerationOptions { RecurseSubdirectories = false });
+                    var allFiles = Directory.GetFiles(topLevelDir, "*.*", new EnumerationOptions { RecurseSubdirectories = recurseSubDirs });
                     var groups = allFiles
                     .Where(f => Regex.IsMatch(Path.GetExtension(f), extensions))
-                    .Select(f => new { FilePath = f, Date = GetDate(GetProperFileNameWithoutExt(f), fileNameDateFormat) })
+                    .Select(f => new { FilePath = f, Date = GetDate(GetProperFileNameWithoutExt(f), fileNameDateFormats) })
                     .Where(x => x.Date != null && x.Date < today.Subtract(TimeSpan.FromDays(retentionDays)))
                     .GroupBy(x => x.Date.Value);
 
@@ -119,24 +127,50 @@ namespace Archiver
             return fileName.TrimEnd('.');
         }
 
-        private DateTime? GetDate(string fileNameWithoutExt, string fileNameDateFormat)
+        private DateTime? GetDate(string fileNameWithoutExt, string[] fileNameDateFormats)
+        {
+            var date = fileNameDateFormats.Select(fileNameDateFormat => GetDate(fileNameWithoutExt, fileNameDateFormat, false))
+                .FirstOrDefault(d => d != null);
+            if (date == null)
+            {
+                var formatsAsText = string.Join(", ", fileNameDateFormats);
+                Log.Warning($"Could not parse date for FileNameWithoutExt: {fileNameWithoutExt}, DateFormats: {formatsAsText}");
+            }
+            return date;
+        }
+
+        private DateTime? GetDate(string fileNameWithoutExt, string fileNameDateFormat, bool shouldLog)
         {
             string dateText;
             string dateFormat;
             // "*2019-08-14_22-29-18"
-            if (fileNameDateFormat.StartsWith("*") && fileNameDateFormat.Length > 1 && fileNameWithoutExt.Length > 1)
+            try
             {
-                dateFormat = fileNameDateFormat.Substring(1);
-                dateText = fileNameWithoutExt.Substring(fileNameWithoutExt.Length - dateFormat.Length);
+                if (fileNameDateFormat.StartsWith("*") && fileNameDateFormat.Length > 1 && fileNameWithoutExt.Length > 1 && fileNameWithoutExt.Length >= fileNameDateFormat.Length - 1)
+                {
+                    dateFormat = fileNameDateFormat.Substring(1);
+                    dateText = fileNameWithoutExt.Substring(fileNameWithoutExt.Length - dateFormat.Length);
+                }
+                else if (fileNameDateFormat.EndsWith("*") && fileNameDateFormat.Length > 1 && fileNameWithoutExt.Length > 1 && fileNameWithoutExt.Length >= fileNameWithoutExt.Length - 1)
+                {
+                    dateFormat = fileNameDateFormat.Substring(0, fileNameDateFormat.Length - 1);
+                    dateText = fileNameWithoutExt.Substring(0, dateFormat.Length);
+                }
+                else
+                {
+                    if (shouldLog)
+                    {
+                        Log.Warning($"Could not parse date for FileNameWithoutExt: {fileNameWithoutExt}, FileNameDateFormat: {fileNameDateFormat}");
+                    }
+                    return null;
+                }
             }
-            else if (fileNameDateFormat.EndsWith("*") && fileNameDateFormat.Length > 1 && fileNameWithoutExt.Length > 1)
+            catch(Exception ex)
             {
-                dateFormat = fileNameDateFormat.Substring(0, fileNameDateFormat.Length - 1);
-                dateText = fileNameWithoutExt.Substring(0, dateFormat.Length);
-            }
-            else
-            {
-                Log.Warning($"Could not parse date for FileNameWithoutExt: {fileNameWithoutExt}, FileNameDateFormat: {fileNameDateFormat}");
+                if (shouldLog)
+                {
+                    Log.Warning($"Unable to find date text for FileNameWithoutExt: {fileNameWithoutExt}, FileNameDateFormat: {fileNameDateFormat}. Exception - {ex}");
+                }
                 return null;
             }
             try
@@ -147,7 +181,10 @@ namespace Archiver
             }
             catch(Exception)
             {
-                Log.Warning($"Could not parse date for FileNameWithoutExt: {fileNameWithoutExt}, DateText: {dateText}, DateFormat: {dateFormat}");
+                if (shouldLog)
+                {
+                  Log.Warning($"Could not parse date for FileNameWithoutExt: {fileNameWithoutExt}, DateText: {dateText}, DateFormat: {dateFormat}");
+                }
                 return null;
             }
         }

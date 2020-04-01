@@ -20,3 +20,5 @@ _--format_ | _-f_: File name date format. Date can only be at the front or the e
 _--debug_: Enables debug logging (information by default)
 
 _--demo_: Enables demo mode where no changes are made
+
+_--recurse_: Recurse sub directories in source path. Default value is false.
