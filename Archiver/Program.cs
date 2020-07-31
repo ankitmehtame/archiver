@@ -20,14 +20,21 @@ namespace Archiver
         [Argument('e', "extensions", "File extensions to archive, example: \".mp4|.avi|.mpeg\", default is \".*\"")]
         private static string Extensions { get; set; } = ArchivingMechanism.DefaultExtensions;
 
-        [Argument('r', "retention", "Number of days to retain locally, after which files will be archived")]
+        [Argument('r', "retention", "Number of days to retain locally, after which files will be archived. Default values is 15.")]
         private static int Retention { get; set; } = ArchivingMechanism.DefaultRetentionDays;
+
+        [Argument('m', "max", "Maximum number of days to look at. Default value is 36500.")]
+        private static int MaxDays { get; set; } = ArchivingMechanism.DefaultMaxDays;
 
         [Argument('f', "format", "File name date format. Date can only be at the front or the end.")]
         private static List<string> FileNameDateFormats { get; set; } = new List<string> { ArchivingMechanism.DefaultFileNameDateFormat };
 
         [Argument('R', "recurse", "Recurse sub directories in source path. Default value is false.")]
         private static bool RecurseSubDirectories { get; set; } = false;
+
+        [Argument('D', "delete", "Deletes instead of archiving. Default value is false.")]
+        private static bool Delete { get; set; } = false;
+
 
         static int Main(string[] args)
         {
@@ -58,11 +65,11 @@ namespace Archiver
             {
                 Log.Information("Demo mode enabled");
             }
-            Arguments.Populate();
+            Arguments.Populate(clearExistingValues: false);
             var possibleArguments = typeof(Program).GetProperties(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic).Where(p => p.GetCustomAttribute(typeof(ArgumentAttribute)) != null).Select(p => new { Name = p.Name, Value = p.GetValue(null) });
             var argumentsText = string.Join("\r\n", possibleArguments.Select(a => $"{a.Name}={a.Value}"));
             Log.Debug("Arguments:\r\n" + argumentsText);
-            if (Source == null || Destination == null)
+            if (Source == null || (Destination == null && !Delete))
             {
                 Log.Warning("Invalid arguments");
                 return 1;
@@ -71,13 +78,27 @@ namespace Archiver
             int retCode = 0;
             try
             {
-                retCode = archivingMechanism.Archive(Source,
-                    Destination,
-                    FileNameDateFormats?.ToArray(),
-                    extensions: Extensions,
-                    retentionDays: Retention,
-                    isDemo: isDemo,
-                    recurseSubDirs: RecurseSubDirectories);
+                if (!Delete)
+                {
+                    retCode = archivingMechanism.Archive(Source,
+                        Destination,
+                        FileNameDateFormats?.ToArray(),
+                        extensions: Extensions,
+                        retentionDays: Retention,
+                        maxDays: MaxDays,
+                        isDemo: isDemo,
+                        recurseSubDirs: RecurseSubDirectories);
+                }
+                else
+                {
+                    retCode = archivingMechanism.Delete(Source,
+                        FileNameDateFormats?.ToArray(),
+                        extensions: Extensions,
+                        retentionDays: Retention,
+                        maxDays: MaxDays,
+                        isDemo: isDemo,
+                        recurseSubDirs: RecurseSubDirectories);
+                }
             }
             catch(Exception ex)
             {

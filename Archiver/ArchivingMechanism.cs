@@ -11,25 +11,29 @@ namespace Archiver
     {
         public const string DefaultFileNameDateFormat = "*yyyy-MM-dd_HH-mm-ss";
         public const int DefaultRetentionDays = 15;
+        public const int DefaultMaxDays = 36500;
         public const string DefaultExtensions = ".*";
 
         /// <summary>
-        /// Archives files.null Can thrown IO exceptions.
+        /// Archives files.
         /// </summary>
         /// <param name="sourceRoot">Source directory (should exist)</param>
         /// <param name="destRoot">Destination directory (should exist)</param>
         /// <param name="extensions">File extensions that should be archived e.g. ".mp4|.mpeg|.avi"</param>
         /// <param name="retentionDays">Number of days to retain files locally</param>
+        /// <param name="maxDays">Number of days to look for from today</param>
         /// <param name="fileNameDateFormats">Formats of the file name to extract date from</param>
         /// <param name="recurseSubDirs">Recurse sub directories in source path</param>
         /// <param name="isDemo">If in demo mode, it will not create folders or move files, but will log everything as if it is performing real actions</param>
         /// <returns>0 on success, 1 on directory not found, 2 on date format not specified or not valid</returns>
-        public int Archive(string sourceRoot, string destRoot, string[] fileNameDateFormats, string extensions = DefaultExtensions, int retentionDays = DefaultRetentionDays, bool recurseSubDirs = false, bool isDemo = false)
+        public int Archive(string sourceRoot, string destRoot, string[] fileNameDateFormats, string extensions = DefaultExtensions, int retentionDays = DefaultRetentionDays, int maxDays = DefaultMaxDays, bool recurseSubDirs = false, bool isDemo = false)
         {
             var fileNameDateFormatsAsText = fileNameDateFormats == null ? string.Empty : string.Join(", ", fileNameDateFormats);
-            Log.Debug($"Archive called with {nameof(sourceRoot)}={sourceRoot} {nameof(destRoot)}={destRoot} {nameof(fileNameDateFormats)}=[{fileNameDateFormatsAsText}] {nameof(extensions)}={extensions} {nameof(retentionDays)}={retentionDays} {nameof(recurseSubDirs)}={recurseSubDirs} {nameof(isDemo)}={isDemo}");
+            Log.Debug($"Archive called with {nameof(sourceRoot)}={sourceRoot} {nameof(destRoot)}={destRoot} {nameof(fileNameDateFormats)}=[{fileNameDateFormatsAsText}] {nameof(extensions)}={extensions} {nameof(retentionDays)}={retentionDays} {nameof(maxDays)}={maxDays} {nameof(recurseSubDirs)}={recurseSubDirs} {nameof(isDemo)}={isDemo}");
             Log.Information($"Archiving started from source {sourceRoot} to destination {destRoot}");
             var today = DateTimeOffset.Now.Date;
+            var maxTimespan = TimeSpan.FromDays(Math.Min(maxDays, 36500));
+            var maxRetentionTimespan = TimeSpan.FromDays(Math.Min(retentionDays, 36500));
 
             fileNameDateFormats = fileNameDateFormats?.Length > 0 ? fileNameDateFormats : new [] { DefaultFileNameDateFormat };
             
@@ -62,7 +66,7 @@ namespace Archiver
                     var groups = allFiles
                     .Where(f => Regex.IsMatch(Path.GetExtension(f), extensions))
                     .Select(f => new { FilePath = f, Date = GetDate(GetProperFileNameWithoutExt(f), fileNameDateFormats) })
-                    .Where(x => x.Date != null && x.Date < today.Subtract(TimeSpan.FromDays(retentionDays)))
+                    .Where(x => x.Date != null && x.Date < today.Subtract(maxRetentionTimespan) && x.Date > today.Subtract(maxTimespan))
                     .GroupBy(x => x.Date.Value);
 
                     var minMaxDates = groups.Any() ? new { MinDate = groups.Min(g => g.Key), MaxDate = groups.Max(g => g.Key) } : null;
@@ -118,6 +122,100 @@ namespace Archiver
             finally
             {
                 Log.Information($"Archiving completed - archived {totalItemsSuccessfullyArchived} out of {totalItemsToArchive}");
+            }
+        }
+
+        /// <summary>
+        /// Deletes files.
+        /// </summary>
+        /// <param name="sourceRoot">Source directory (should exist)</param>
+        /// <param name="extensions">File extensions that should be archived e.g. ".mp4|.mpeg|.avi"</param>
+        /// <param name="retentionDays">Number of days to retain files locally</param>
+        /// <param name="destRoot">Destination directory (should exist)</param>
+        /// <param name="maxDays">Number of days to look for from today</param>
+        /// <param name="recurseSubDirs">Recurse sub directories in source path</param>
+        /// <param name="isDemo">If in demo mode, it will not create folders or move files, but will log everything as if it is performing real actions</param>
+        /// <returns>0 on success, 1 on directory not found, 2 on date format not specified or not valid</returns>
+        public int Delete(string sourceRoot, string[] fileNameDateFormats, string extensions = DefaultExtensions, int retentionDays = DefaultRetentionDays, int maxDays = DefaultMaxDays, bool recurseSubDirs = false, bool isDemo = false)
+        {
+            var fileNameDateFormatsAsText = fileNameDateFormats == null ? string.Empty : string.Join(", ", fileNameDateFormats);
+            Log.Debug($"Delete called with {nameof(sourceRoot)}={sourceRoot} {nameof(fileNameDateFormats)}=[{fileNameDateFormatsAsText}] {nameof(extensions)}={extensions} {nameof(retentionDays)}={retentionDays} {nameof(maxDays)}={maxDays} {nameof(recurseSubDirs)}={recurseSubDirs} {nameof(isDemo)}={isDemo}");
+            Log.Information($"Deleting started from source {sourceRoot}");
+            var today = DateTimeOffset.Now.Date;
+            var maxTimespan = TimeSpan.FromDays(Math.Min(maxDays, 36500));
+            var maxRetentionTimespan = TimeSpan.FromDays(Math.Min(retentionDays, 36500));
+            fileNameDateFormats = fileNameDateFormats?.Length > 0 ? fileNameDateFormats : new [] { DefaultFileNameDateFormat };
+            
+            if (!Directory.Exists(sourceRoot))
+            {
+                Log.Warning($"Source dir {sourceRoot} does not exist");
+                return 1;
+            }
+            
+            foreach(var fileNameDateFormat in fileNameDateFormats)
+            {
+                if (fileNameDateFormat == null || !((fileNameDateFormat.StartsWith("*") && !fileNameDateFormat.EndsWith("*")) || (!fileNameDateFormat.StartsWith("*") && fileNameDateFormat.EndsWith("*"))))
+                {
+                    Log.Warning($"File name date format is not valid");
+                    return 2;
+                }
+            }
+            var totalItemsSuccessfullyDeleted = 0;
+            var totalItemsToDelete = 0;
+            try
+            {
+                var topLevelDirs = Directory.GetDirectories(sourceRoot);
+                foreach (var topLevelDir in topLevelDirs)
+                {
+                    var allFiles = Directory.GetFiles(topLevelDir, "*.*", new EnumerationOptions { RecurseSubdirectories = recurseSubDirs });
+                    var groups = allFiles
+                    .Where(f => Regex.IsMatch(Path.GetExtension(f), extensions))
+                    .Select(f => new { FilePath = f, Date = GetDate(GetProperFileNameWithoutExt(f), fileNameDateFormats) })
+                    .Where(x => x.Date != null && x.Date < today.Subtract(maxRetentionTimespan) && x.Date > today.Subtract(maxTimespan))
+                    .GroupBy(x => x.Date.Value);
+
+                    var minMaxDates = groups.Any() ? new { MinDate = groups.Min(g => g.Key), MaxDate = groups.Max(g => g.Key) } : null;
+                    if (minMaxDates != null)
+                    {
+                        var minDateText = minMaxDates.MinDate.ToString("yyyy-MM-dd");
+                        var maxDateText = minMaxDates.MaxDate.ToString("yyyy-MM-dd");
+                        Log.Information($"Found oldest file to delete for date {minDateText} and latest for date {maxDateText} in {topLevelDir}");
+                    }
+                    else
+                    {
+                        Log.Information($"No file found to delete in {topLevelDir}");
+                    }
+
+                    var totalItemsAtThisLevel = allFiles.Length;
+                    int currentNum = 0;
+                    foreach (var group in groups.OrderBy(g => g.Key))
+                    {
+                        var dateText = group.Key.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+                        foreach (var item in group.OrderBy(f => f.FilePath))
+                        {
+                            currentNum++;
+                            totalItemsToDelete++;
+                            var perc = Math.Round(currentNum * 100m / totalItemsAtThisLevel, 2);
+                            var file = item.FilePath;
+                            Log.Debug($"Deleting file {Path.GetFileName(file)}  -  {currentNum}/{totalItemsAtThisLevel} ({perc}%)");
+                            if (!isDemo)
+                            {
+                                File.Delete(file);
+                            }
+                            totalItemsSuccessfullyDeleted++;
+                        }
+                    }
+                }
+                return 0;
+            }
+            catch
+            {
+                Log.Warning("There has been an error during deletion process");
+                throw;
+            }
+            finally
+            {
+                Log.Information($"Deleting completed - deleted {totalItemsSuccessfullyDeleted} out of {totalItemsToDelete}");
             }
         }
 
