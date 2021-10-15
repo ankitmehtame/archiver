@@ -36,10 +36,13 @@ namespace Archiver
         private static bool Delete { get; set; } = false;
 
 
+        private static string InfoVersion = Assembly.GetEntryAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>().InformationalVersion;
+
         static int Main(string[] args)
         {
             if(args.Any(a => a == "--help"))
             {
+                System.Console.WriteLine("v{InfoVersion}");
                 var helpAttributes = Arguments.GetArgumentInfo();
                 Console.WriteLine("Short\tLong\tFunction");
                 Console.WriteLine("-----\t----\t--------");
@@ -59,7 +62,7 @@ namespace Archiver
                 .WriteTo.Console()
                 .WriteTo.File("Logs/Archiver.log", rollingInterval: RollingInterval.Day)
                 .CreateLogger();
-            Log.Information($"Starting {Environment.CommandLine} from {Environment.CurrentDirectory}");
+            Log.Information($"Starting v{InfoVersion} {Environment.CommandLine} from {Environment.CurrentDirectory}");
             Log.Debug("Debug logging enabled");
             if (isDemo)
             {

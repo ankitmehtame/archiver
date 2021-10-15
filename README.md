@@ -13,6 +13,10 @@ or
 ```
 archiver --source "C:\Source" --extensions ".mp4|.mpeg" --retention 15 --max 45 --format "*yyyy-MM-dd_HH-mm-ss" --delete
 ```
+or
+```
+docker run --rm -it  -v "//d//Media/Videos:/source" archiver --source /source --extensions ".mp4|.mpeg" --retention 30 --max 60 --format "*yyyy-MM-dd_HH-mm-ss" --delete --debug --demo --recurse
+```
 
 #### Options
 _--extensions_ | _-e_: File extensions to archive, example: ".mp4|.avi|.mpeg", default is ".*"
