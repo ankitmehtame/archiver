@@ -35,8 +35,8 @@ namespace Archiver
             var maxTimespan = TimeSpan.FromDays(Math.Min(maxDays, 36500));
             var maxRetentionTimespan = TimeSpan.FromDays(Math.Min(retentionDays, 36500));
 
-            fileNameDateFormats = fileNameDateFormats?.Length > 0 ? fileNameDateFormats : new [] { DefaultFileNameDateFormat };
-            
+            fileNameDateFormats = fileNameDateFormats?.Length > 0 ? fileNameDateFormats : new[] { DefaultFileNameDateFormat };
+
             if (!Directory.Exists(sourceRoot))
             {
                 Log.Warning($"Source dir {sourceRoot} does not exist");
@@ -47,7 +47,7 @@ namespace Archiver
                 Log.Warning($"Destination dir {destRoot} does not exist");
                 return 1;
             }
-            foreach(var fileNameDateFormat in fileNameDateFormats)
+            foreach (var fileNameDateFormat in fileNameDateFormats)
             {
                 if (fileNameDateFormat == null || !((fileNameDateFormat.StartsWith("*") && !fileNameDateFormat.EndsWith("*")) || (!fileNameDateFormat.StartsWith("*") && fileNameDateFormat.EndsWith("*"))))
                 {
@@ -107,6 +107,12 @@ namespace Archiver
                             if (!isDemo)
                             {
                                 File.Move(file, newFilePath, true);
+                                // For docker move between volumes, file may not be deleted. Needs to be deleted manually.
+                                if (File.Exists(file))
+                                {
+                                    Log.Debug($"Deleting file {Path.GetFileName(file)}");
+                                    File.Delete(file);
+                                }
                             }
                             totalItemsSuccessfullyArchived++;
                         }
@@ -144,15 +150,15 @@ namespace Archiver
             var today = DateTimeOffset.Now.Date;
             var maxTimespan = TimeSpan.FromDays(Math.Min(maxDays, 36500));
             var maxRetentionTimespan = TimeSpan.FromDays(Math.Min(retentionDays, 36500));
-            fileNameDateFormats = fileNameDateFormats?.Length > 0 ? fileNameDateFormats : new [] { DefaultFileNameDateFormat };
-            
+            fileNameDateFormats = fileNameDateFormats?.Length > 0 ? fileNameDateFormats : new[] { DefaultFileNameDateFormat };
+
             if (!Directory.Exists(sourceRoot))
             {
                 Log.Warning($"Source dir {sourceRoot} does not exist");
                 return 1;
             }
-            
-            foreach(var fileNameDateFormat in fileNameDateFormats)
+
+            foreach (var fileNameDateFormat in fileNameDateFormats)
             {
                 if (fileNameDateFormat == null || !((fileNameDateFormat.StartsWith("*") && !fileNameDateFormat.EndsWith("*")) || (!fileNameDateFormat.StartsWith("*") && fileNameDateFormat.EndsWith("*"))))
                 {
@@ -263,7 +269,7 @@ namespace Archiver
                     return null;
                 }
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 if (shouldLog)
                 {
@@ -277,11 +283,11 @@ namespace Archiver
                 var date = dateTime.Date;
                 return (DateTime?)date;
             }
-            catch(Exception)
+            catch (Exception)
             {
                 if (shouldLog)
                 {
-                  Log.Warning($"Could not parse date for FileNameWithoutExt: {fileNameWithoutExt}, DateText: {dateText}, DateFormat: {dateFormat}");
+                    Log.Warning($"Could not parse date for FileNameWithoutExt: {fileNameWithoutExt}, DateText: {dateText}, DateFormat: {dateFormat}");
                 }
                 return null;
             }
