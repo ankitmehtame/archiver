@@ -1,3 +1,5 @@
+[![Docker Image CI](https://github.com/ankitmehtame/archiver/actions/workflows/docker-image.yml/badge.svg)](https://github.com/ankitmehtame/archiver/actions/workflows/docker-image.yml)
+
 # archiver
 Archives media
 
