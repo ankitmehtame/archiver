@@ -1,3 +1,6 @@
+[![Docker Image CI](https://github.com/ankitmehtame/archiver/actions/workflows/docker-image.yml/badge.svg)](https://github.com/ankitmehtame/http-forwarder/actions/workflows/docker-image.yml)
+![Docker Image Version (tag latest semver)](https://img.shields.io/docker/v/ankitmehtame/archiver/latest?color=blue)
+
 # archiver
 Archives media
 
