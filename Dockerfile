@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/core/sdk:3.1 AS build
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:6.0 AS build
 WORKDIR /source
 
 ARG TARGETPLATFORM
@@ -25,7 +25,7 @@ RUN if [ "$TARGETPLATFORM" = "linux/amd64" ]; then \
     && echo "dotnet publish -c Release -o /app --runtime $RID --self-contained false -p:PublishSingleFile=false -p:PublishTrimmed=false" \
     && dotnet publish -c Release -o /app --runtime $RID --self-contained false -p:PublishSingleFile=false -p:PublishTrimmed=false
 
-FROM --platform=$TARGETPLATFORM mcr.microsoft.com/dotnet/runtime:3.1-buster-slim
+FROM --platform=$TARGETPLATFORM mcr.microsoft.com/dotnet/runtime:6.0-buster-slim
 WORKDIR /app
 COPY --from=build /app .
 ENTRYPOINT ["dotnet", "Archiver.dll"]
