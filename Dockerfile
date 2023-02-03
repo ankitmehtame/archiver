@@ -11,8 +11,8 @@ RUN if [ "$TARGETPLATFORM" = "linux/amd64" ]; then \
     elif [ "$TARGETPLATFORM" = "linux/arm/v7" ] || [ "$TARGETPLATFORM" = "linux/arm/v8" ]; then \
         RID=linux-arm ; \
     fi \
-    && echo "dotnet restore -runtime $RID" \
-    && dotnet restore -runtime $RID
+    && echo "dotnet restore --runtime $RID" \
+    && dotnet restore --runtime $RID
 
 COPY . .
 RUN if [ "$TARGETPLATFORM" = "linux/amd64" ]; then \
